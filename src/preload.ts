@@ -3,7 +3,17 @@ import {
     ipcRenderer
 } from "electron";
 
-import type { Bookmark } from "./main/bookmarks";
+import type {
+    Bookmark
+} from "./main/bookmarks";
+
+import type {
+    HistoryEntry
+} from "./main/history";
+
+import type {
+    DownloadEntry
+} from "./main/downloads";
 
 
 contextBridge.exposeInMainWorld(
@@ -24,6 +34,7 @@ contextBridge.exposeInMainWorld(
                 "browser:navigate",
                 url
             );
+
         },
 
 
@@ -32,6 +43,7 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:back"
             );
+
         },
 
 
@@ -40,6 +52,7 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:forward"
             );
+
         },
 
 
@@ -48,6 +61,7 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:reload"
             );
+
         },
 
 
@@ -62,6 +76,7 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:new-tab"
             );
+
         },
 
 
@@ -73,6 +88,7 @@ contextBridge.exposeInMainWorld(
                 "browser:close-tab",
                 id
             );
+
         },
 
 
@@ -84,6 +100,7 @@ contextBridge.exposeInMainWorld(
                 "browser:switch-tab",
                 id
             );
+
         },
 
 
@@ -92,6 +109,7 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:next-tab"
             );
+
         },
 
 
@@ -100,12 +118,13 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:previous-tab"
             );
+
         },
 
 
         /*
          * =========================
-         * BROWSER EVENTS
+         * NAVIGATION EVENTS
          * =========================
          */
 
@@ -123,8 +142,10 @@ contextBridge.exposeInMainWorld(
                 ) => {
 
                     callback(url);
+
                 }
             );
+
         },
 
 
@@ -142,10 +163,18 @@ contextBridge.exposeInMainWorld(
                 ) => {
 
                     callback(loading);
+
                 }
             );
+
         },
 
+
+        /*
+         * =========================
+         * TAB EVENTS
+         * =========================
+         */
 
         onTabsUpdated: (
             callback: (
@@ -161,8 +190,37 @@ contextBridge.exposeInMainWorld(
                 ) => {
 
                     callback(tabs);
+
                 }
             );
+
+        },
+
+
+        onTabLoadingChanged: (
+            callback: (
+                data: {
+                    id: string;
+                    loading: boolean;
+                }
+            ) => void
+        ): void => {
+
+            ipcRenderer.on(
+                "browser:tab-loading",
+                (
+                    _event,
+                    data: {
+                        id: string;
+                        loading: boolean;
+                    }
+                ) => {
+
+                    callback(data);
+
+                }
+            );
+
         },
 
 
@@ -172,11 +230,12 @@ contextBridge.exposeInMainWorld(
          * =========================
          */
 
-        getHistory: (): Promise<unknown[]> => {
+        getHistory: (): Promise<HistoryEntry[]> => {
 
             return ipcRenderer.invoke(
                 "browser:get-history"
             );
+
         },
 
 
@@ -185,6 +244,7 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:clear-history"
             );
+
         },
 
 
@@ -193,6 +253,7 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:show-history"
             );
+
         },
 
 
@@ -201,6 +262,7 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:close-history"
             );
+
         },
 
 
@@ -215,6 +277,7 @@ contextBridge.exposeInMainWorld(
             return ipcRenderer.invoke(
                 "browser:get-bookmarks"
             );
+
         },
 
 
@@ -226,6 +289,7 @@ contextBridge.exposeInMainWorld(
                 "browser:is-bookmarked",
                 url
             );
+
         },
 
 
@@ -239,6 +303,7 @@ contextBridge.exposeInMainWorld(
                 title,
                 url
             );
+
         },
 
 
@@ -250,6 +315,7 @@ contextBridge.exposeInMainWorld(
                 "browser:remove-bookmark",
                 id
             );
+
         },
 
 
@@ -261,6 +327,7 @@ contextBridge.exposeInMainWorld(
                 "browser:remove-bookmark-by-url",
                 url
             );
+
         },
 
 
@@ -269,6 +336,7 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:show-bookmarks"
             );
+
         },
 
 
@@ -277,6 +345,119 @@ contextBridge.exposeInMainWorld(
             ipcRenderer.send(
                 "browser:close-bookmarks"
             );
+
+        },
+
+
+        /*
+         * =========================
+         * DOWNLOADS
+         * =========================
+         */
+
+        getDownloads: (): Promise<DownloadEntry[]> => {
+
+            return ipcRenderer.invoke(
+                "browser:get-downloads"
+            );
+
+        },
+
+
+        openDownload: (
+            id: string
+        ): Promise<void> => {
+
+            return ipcRenderer.invoke(
+                "browser:open-download",
+                id
+            );
+
+        },
+
+
+        showDownloadInFolder: (
+            id: string
+        ): void => {
+
+            ipcRenderer.send(
+                "browser:show-download-in-folder",
+                id
+            );
+
+        },
+
+
+        cancelDownload: (
+            id: string
+        ): void => {
+
+            ipcRenderer.send(
+                "browser:cancel-download",
+                id
+            );
+
+        },
+
+
+        removeDownload: (
+            id: string
+        ): Promise<void> => {
+
+            return ipcRenderer.invoke(
+                "browser:remove-download",
+                id
+            );
+
+        },
+
+
+        clearDownloads: (): void => {
+
+            ipcRenderer.send(
+                "browser:clear-downloads"
+            );
+
+        },
+
+
+        showDownloads: (): void => {
+
+            ipcRenderer.send(
+                "browser:show-downloads"
+            );
+
+        },
+
+
+        closeDownloads: (): void => {
+
+            ipcRenderer.send(
+                "browser:close-downloads"
+            );
+
+        },
+
+
+        onDownloadsUpdated: (
+            callback: (
+                downloads: DownloadEntry[]
+            ) => void
+        ): void => {
+
+            ipcRenderer.on(
+                "browser:downloads-updated",
+                (
+                    _event,
+                    downloads: DownloadEntry[]
+                ) => {
+
+                    callback(downloads);
+
+                }
+            );
+
         }
+
     }
 );

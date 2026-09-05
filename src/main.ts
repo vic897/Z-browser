@@ -1,172 +1,88 @@
 import {
     app,
     BrowserWindow,
-    ipcMain,
-    WebContentsView
+    WebContentsView,
+    ipcMain
 } from "electron";
 
 import path from "path";
 
-import { BookmarkManager } from "./main/bookmarks";
 import { NavigationController } from "./main/navigation";
-import { resolveNavigationInput } from "./main/urlResolver";
 import { TabManager } from "./main/tabs";
 import { HistoryManager } from "./main/history";
+import { BookmarkManager } from "./main/bookmarks";
+import { DownloadManager } from "./main/downloads";
+import { resolveNavigationInput } from "./main/urlResolver";
 
+
+let mainWindow: BrowserWindow | null = null;
 
 let navController: NavigationController;
-
 let tabManager: TabManager;
-
 let historyManager: HistoryManager;
+let bookmarkManager: BookmarkManager;
+let downloadManager: DownloadManager;
+
+
+/* =========================
+   HISTORY VIEW
+========================= */
 
 let historyView: WebContentsView | null = null;
-
 let historyVisible = false;
 
-let bookmarkManager: BookmarkManager;
+
+/* =========================
+   BOOKMARKS VIEW
+========================= */
 
 let bookmarksView: WebContentsView | null = null;
-
 let bookmarksVisible = false;
 
 
-/*
- * =========================
- * HISTORY VIEW
- * =========================
- */
+/* =========================
+   DOWNLOADS VIEW
+========================= */
 
-function createHistoryView(
-    win: BrowserWindow
-): WebContentsView {
-
-    const view =
-        new WebContentsView({
-            webPreferences: {
-                contextIsolation: true,
-                nodeIntegration: false,
-                sandbox: false,
-                preload:
-                    path.join(
-                        __dirname,
-                        "preload.js"
-                    )
-            }
-        });
+let downloadsView: WebContentsView | null = null;
+let downloadsVisible = false;
 
 
-    win.contentView.addChildView(
-        view
-    );
-
-
-    const [
-        width,
-        height
-    ] =
-        win.getContentSize();
-
-
-    view.setBounds({
-        x: 0,
-        y: 100,
-        width,
-        height: height - 100
-    });
-
-
-    view.setVisible(
-        false
-    );
-
-
-    view.webContents.loadFile(
-        path.join(
-            __dirname,
-            "../src/history.html"
-        )
-    );
-
-
-    return view;
-}
-
-
-/*
- * =========================
- * SHOW HISTORY
- * =========================
- */
+/* =========================
+   SHOW / CLOSE HISTORY
+========================= */
 
 function showHistory(): void {
 
-    if (!historyView) {
+    if (!historyView || !mainWindow) {
         return;
     }
-
-
-    const win =
-        BrowserWindow.getAllWindows()[0];
-
-
-    if (!win) {
-        return;
-    }
-
-
-    /*
-     * Only one internal page should
-     * be visible at a time.
-     */
-
-    if (bookmarksVisible) {
-        closeBookmarks();
-    }
-
 
     historyVisible = true;
 
+    tabManager.setContentVisible(false);
 
-    /*
-     * Hide the currently active
-     * browser tab.
-     */
+    bookmarksVisible = false;
 
-    tabManager.setContentVisible(
-        false
-    );
+    if (bookmarksView) {
+        bookmarksView.setVisible(false);
+    }
 
+    downloadsVisible = false;
 
-    /*
-     * Reload so the History UI gets
-     * the latest HistoryManager data.
-     */
+    if (downloadsView) {
+        downloadsView.setVisible(false);
+    }
 
     historyView.webContents.reload();
 
+    historyView.setVisible(true);
 
-    historyView.setVisible(
-        true
-    );
-
-
-    /*
-     * Re-adding an existing child view
-     * moves it above the other views.
-     */
-
-    win.contentView.addChildView(
+    mainWindow.contentView.addChildView(
         historyView
     );
 }
 
-
-/*
- * =========================
- * CLOSE HISTORY
- * =========================
- */
 
 function closeHistory(): void {
 
@@ -174,165 +90,55 @@ function closeHistory(): void {
         return;
     }
 
-
     historyVisible = false;
 
+    historyView.setVisible(false);
 
-    historyView.setVisible(
-        false
-    );
+    if (
+        !bookmarksVisible &&
+        !downloadsVisible
+    ) {
 
-
-    /*
-     * Restore the active browser tab.
-     *
-     * If Bookmarks is visible, it will
-     * remain responsible for the content area.
-     */
-
-    if (!bookmarksVisible) {
-        tabManager.setContentVisible(
-            true
-        );
+        tabManager.setContentVisible(true);
     }
 }
 
 
-/*
- * =========================
- * BOOKMARKS VIEW
- * =========================
- */
-
-function createBookmarksView(
-    win: BrowserWindow
-): WebContentsView {
-
-    const view =
-        new WebContentsView({
-            webPreferences: {
-                contextIsolation: true,
-                nodeIntegration: false,
-                sandbox: false,
-                preload:
-                    path.join(
-                        __dirname,
-                        "preload.js"
-                    )
-            }
-        });
-
-
-    win.contentView.addChildView(
-        view
-    );
-
-
-    const [
-        width,
-        height
-    ] =
-        win.getContentSize();
-
-
-    view.setBounds({
-        x: 0,
-        y: 100,
-        width,
-        height: height - 100
-    });
-
-
-    view.setVisible(
-        false
-    );
-
-
-    view.webContents.loadFile(
-        path.join(
-            __dirname,
-            "../src/bookmarks.html"
-        )
-    );
-
-
-    return view;
-}
-
-
-/*
- * =========================
- * SHOW BOOKMARKS
- * =========================
- */
+/* =========================
+   SHOW / CLOSE BOOKMARKS
+========================= */
 
 function showBookmarks(): void {
 
-    if (!bookmarksView) {
+    if (!bookmarksView || !mainWindow) {
         return;
     }
-
-
-    const win =
-        BrowserWindow.getAllWindows()[0];
-
-
-    if (!win) {
-        return;
-    }
-
-
-    /*
-     * Only one internal page should
-     * be visible at a time.
-     */
-
-    if (historyVisible) {
-        closeHistory();
-    }
-
 
     bookmarksVisible = true;
 
+    historyVisible = false;
 
-    /*
-     * Hide the active browser tab.
-     */
+    if (historyView) {
+        historyView.setVisible(false);
+    }
 
-    tabManager.setContentVisible(
-        false
-    );
+    downloadsVisible = false;
 
+    if (downloadsView) {
+        downloadsView.setVisible(false);
+    }
 
-    /*
-     * Reload so the UI gets the
-     * latest bookmark data.
-     */
+    tabManager.setContentVisible(false);
 
     bookmarksView.webContents.reload();
 
+    bookmarksView.setVisible(true);
 
-    bookmarksView.setVisible(
-        true
-    );
-
-
-    /*
-     * Move the bookmarks view above
-     * the browser tabs.
-     */
-
-    win.contentView.addChildView(
+    mainWindow.contentView.addChildView(
         bookmarksView
     );
 }
 
-
-/*
- * =========================
- * CLOSE BOOKMARKS
- * =========================
- */
 
 function closeBookmarks(): void {
 
@@ -340,58 +146,113 @@ function closeBookmarks(): void {
         return;
     }
 
-
     bookmarksVisible = false;
 
+    bookmarksView.setVisible(false);
 
-    bookmarksView.setVisible(
-        false
-    );
+    if (
+        !historyVisible &&
+        !downloadsVisible
+    ) {
 
-
-    /*
-     * Restore the active browser tab
-     * unless History is currently open.
-     */
-
-    if (!historyVisible) {
-        tabManager.setContentVisible(
-            true
-        );
+        tabManager.setContentVisible(true);
     }
 }
 
 
-/*
- * =========================
- * CREATE WINDOW
- * =========================
- */
+/* =========================
+   SHOW / CLOSE DOWNLOADS
+========================= */
+
+function showDownloads(): void {
+
+    if (!downloadsView || !mainWindow) {
+        return;
+    }
+
+    downloadsVisible = true;
+
+    historyVisible = false;
+
+    if (historyView) {
+        historyView.setVisible(false);
+    }
+
+    bookmarksVisible = false;
+
+    if (bookmarksView) {
+        bookmarksView.setVisible(false);
+    }
+
+    tabManager.setContentVisible(false);
+
+    downloadsView.webContents.reload();
+
+    downloadsView.setVisible(true);
+
+    mainWindow.contentView.addChildView(
+        downloadsView
+    );
+}
+
+
+function closeDownloads(): void {
+
+    if (!downloadsView) {
+        return;
+    }
+
+    downloadsVisible = false;
+
+    downloadsView.setVisible(false);
+
+    if (
+        !historyVisible &&
+        !bookmarksVisible
+    ) {
+
+        tabManager.setContentVisible(true);
+    }
+}
+
+
+/* =========================
+   CREATE WINDOW
+========================= */
 
 function createWindow(): void {
 
-    const win =
+    mainWindow =
         new BrowserWindow({
+
             width: 1400,
+
             height: 900,
 
+            minWidth: 900,
+
+            minHeight: 600,
+
             webPreferences: {
-                contextIsolation: true,
-                nodeIntegration: false,
-                sandbox: false,
 
                 preload:
                     path.join(
                         __dirname,
                         "preload.js"
-                    )
+                    ),
+
+                contextIsolation: true,
+
+                nodeIntegration: false,
+
+                sandbox: false
             }
         });
 
 
     /*
      * =========================
-     * DATA MANAGERS
+     * MANAGERS
      * =========================
      */
 
@@ -407,11 +268,11 @@ function createWindow(): void {
         );
 
 
-    /*
-     * =========================
-     * CONTROLLERS
-     * =========================
-     */
+    downloadManager =
+        new DownloadManager(
+            app.getPath("userData")
+        );
+
 
     navController =
         new NavigationController();
@@ -419,19 +280,22 @@ function createWindow(): void {
 
     tabManager =
         new TabManager(
-            win,
+            mainWindow,
             navController,
             historyManager
         );
 
 
+    downloadManager.initialize();
+
+
     /*
      * =========================
-     * MAIN BROWSER SHELL
+     * BROWSER SHELL
      * =========================
      */
 
-    win.loadFile(
+    mainWindow.loadFile(
         path.join(
             __dirname,
             "../src/index.html"
@@ -441,20 +305,199 @@ function createWindow(): void {
 
     /*
      * =========================
-     * INTERNAL VIEWS
+     * HISTORY VIEW
      * =========================
      */
 
     historyView =
-        createHistoryView(
-            win
-        );
+        new WebContentsView({
 
+            webPreferences: {
+
+                preload:
+                    path.join(
+                        __dirname,
+                        "preload.js"
+                    ),
+
+                contextIsolation: true,
+
+                nodeIntegration: false,
+
+                sandbox: false
+            }
+        });
+
+
+    mainWindow.contentView.addChildView(
+        historyView
+    );
+
+
+    historyView.setBounds({
+
+        x: 0,
+
+        y: 100,
+
+        width:
+            mainWindow.getContentBounds().width,
+
+        height:
+            mainWindow.getContentBounds().height -
+            100
+    });
+
+
+    historyView.setVisible(false);
+
+
+    historyView.webContents.loadFile(
+        path.join(
+            __dirname,
+            "../src/history.html"
+        )
+    );
+
+
+    /*
+     * =========================
+     * BOOKMARKS VIEW
+     * =========================
+     */
 
     bookmarksView =
-        createBookmarksView(
-            win
-        );
+        new WebContentsView({
+
+            webPreferences: {
+
+                preload:
+                    path.join(
+                        __dirname,
+                        "preload.js"
+                    ),
+
+                contextIsolation: true,
+
+                nodeIntegration: false,
+
+                sandbox: false
+            }
+        });
+
+
+    mainWindow.contentView.addChildView(
+        bookmarksView
+    );
+
+
+    bookmarksView.setBounds({
+
+        x: 0,
+
+        y: 100,
+
+        width:
+            mainWindow.getContentBounds().width,
+
+        height:
+            mainWindow.getContentBounds().height -
+            100
+    });
+
+
+    bookmarksView.setVisible(false);
+
+
+    bookmarksView.webContents.loadFile(
+        path.join(
+            __dirname,
+            "../src/bookmarks.html"
+        )
+    );
+
+
+    /*
+     * =========================
+     * DOWNLOADS VIEW
+     * =========================
+     */
+
+    downloadsView =
+        new WebContentsView({
+
+            webPreferences: {
+
+                preload:
+                    path.join(
+                        __dirname,
+                        "preload.js"
+                    ),
+
+                contextIsolation: true,
+
+                nodeIntegration: false,
+
+                sandbox: false
+            }
+        });
+
+
+    mainWindow.contentView.addChildView(
+        downloadsView
+    );
+
+
+    downloadsView.setBounds({
+
+        x: 0,
+
+        y: 100,
+
+        width:
+            mainWindow.getContentBounds().width,
+
+        height:
+            mainWindow.getContentBounds().height -
+            100
+    });
+
+
+    downloadsView.setVisible(false);
+
+
+    downloadsView.webContents.loadFile(
+        path.join(
+            __dirname,
+            "../src/downloads.html"
+        )
+    );
+
+
+    /*
+     * =========================
+     * DOWNLOAD EVENTS
+     * =========================
+     */
+
+    downloadManager.onUpdated(
+        (downloads) => {
+
+            if (
+                !downloadsView ||
+                downloadsView.webContents.isDestroyed()
+            ) {
+
+                return;
+            }
+
+
+            downloadsView.webContents.send(
+                "browser:downloads-updated",
+                downloads
+            );
+        }
+    );
 
 
     /*
@@ -463,8 +506,14 @@ function createWindow(): void {
      * =========================
      */
 
-    tabManager.createTab(
-        "https://www.youtube.com"
+    const initialTab =
+        tabManager.createTab(
+            "https://www.youtube.com"
+        );
+
+
+    navController.setActiveTab(
+        initialTab
     );
 
 
@@ -474,111 +523,92 @@ function createWindow(): void {
      * =========================
      */
 
-    win.on(
+    mainWindow.on(
         "resize",
         () => {
 
-            const [
-                width,
-                height
-            ] =
-                win.getContentSize();
-
-
-            /*
-             * Resize every browser tab.
-             */
-
-            for (
-                const tab
-                of tabManager.getTabs()
-            ) {
-
-                tab.webView.setBounds({
-                    x: 0,
-                    y: 100,
-                    width,
-                    height: height - 100
-                });
+            if (!mainWindow) {
+                return;
             }
 
 
-            /*
-             * Resize History view.
-             */
-
-            if (historyView) {
-
-                historyView.setBounds({
-                    x: 0,
-                    y: 100,
-                    width,
-                    height: height - 100
-                });
-            }
+            const bounds =
+                mainWindow.getContentBounds();
 
 
-            /*
-             * Resize Bookmarks view.
-             */
+            historyView?.setBounds({
 
-            if (bookmarksView) {
+                x: 0,
 
-                bookmarksView.setBounds({
-                    x: 0,
-                    y: 100,
-                    width,
-                    height: height - 100
-                });
-            }
+                y: 100,
+
+                width: bounds.width,
+
+                height:
+                    bounds.height - 100
+            });
+
+
+            bookmarksView?.setBounds({
+
+                x: 0,
+
+                y: 100,
+
+                width: bounds.width,
+
+                height:
+                    bounds.height - 100
+            });
+
+
+            downloadsView?.setBounds({
+
+                x: 0,
+
+                y: 100,
+
+                width: bounds.width,
+
+                height:
+                    bounds.height - 100
+            });
         }
     );
 }
 
 
-/*
- * =========================
- * APP READY
- * =========================
- */
+/* =========================
+   APP LIFECYCLE
+========================= */
 
-app.whenReady().then(
-    () => {
+app.whenReady().then(() => {
 
-        createWindow();
+    createWindow();
 
 
-        app.on(
-            "activate",
-            () => {
+    app.on(
+        "activate",
+        () => {
 
-                if (
-                    BrowserWindow
-                        .getAllWindows()
-                        .length === 0
-                ) {
+            if (
+                BrowserWindow.getAllWindows()
+                    .length === 0
+            ) {
 
-                    createWindow();
-                }
+                createWindow();
             }
-        );
-    }
-);
+        }
+    );
+});
 
-
-/*
- * =========================
- * WINDOW CLOSED
- * =========================
- */
 
 app.on(
     "window-all-closed",
     () => {
 
         if (
-            process.platform !==
-            "darwin"
+            process.platform !== "darwin"
         ) {
 
             app.quit();
@@ -587,30 +617,19 @@ app.on(
 );
 
 
-/*
- * =========================
- * NAVIGATION IPC
- * =========================
- */
+/* =========================
+   NAVIGATION IPC
+========================= */
 
 ipcMain.on(
     "browser:navigate",
-    (_event, input) => {
+    (_event, input: string) => {
 
-        /*
-         * Internal pages must close
-         * when normal browser navigation
-         * begins.
-         */
+        closeHistory();
 
-        if (historyVisible) {
-            closeHistory();
-        }
+        closeBookmarks();
 
-
-        if (bookmarksVisible) {
-            closeBookmarks();
-        }
+        closeDownloads();
 
 
         const url =
@@ -619,10 +638,7 @@ ipcMain.on(
             );
 
 
-        if (
-            url.length === 0
-        ) {
-
+        if (!url) {
             return;
         }
 
@@ -634,152 +650,101 @@ ipcMain.on(
 );
 
 
-/*
- * =========================
- * BACK
- * =========================
- */
-
 ipcMain.on(
     "browser:back",
     () => {
 
-        if (historyVisible) {
-            closeHistory();
-        }
+        closeHistory();
 
+        closeBookmarks();
 
-        if (bookmarksVisible) {
-            closeBookmarks();
-        }
-
+        closeDownloads();
 
         navController.goBack();
     }
 );
 
 
-/*
- * =========================
- * FORWARD
- * =========================
- */
-
 ipcMain.on(
     "browser:forward",
     () => {
 
-        if (historyVisible) {
-            closeHistory();
-        }
+        closeHistory();
 
+        closeBookmarks();
 
-        if (bookmarksVisible) {
-            closeBookmarks();
-        }
-
+        closeDownloads();
 
         navController.goForward();
     }
 );
 
 
-/*
- * =========================
- * RELOAD
- * =========================
- */
-
 ipcMain.on(
     "browser:reload",
     () => {
 
-        if (historyVisible) {
-            closeHistory();
-        }
+        closeHistory();
 
+        closeBookmarks();
 
-        if (bookmarksVisible) {
-            closeBookmarks();
-        }
-
+        closeDownloads();
 
         navController.reload();
     }
 );
 
 
-/*
- * =========================
- * NEW TAB
- * =========================
- */
+/* =========================
+   TAB IPC
+========================= */
 
 ipcMain.on(
     "browser:new-tab",
     () => {
 
-        if (historyVisible) {
-            closeHistory();
-        }
+        closeHistory();
+
+        closeBookmarks();
+
+        closeDownloads();
 
 
-        if (bookmarksVisible) {
-            closeBookmarks();
-        }
+        const tab =
+            tabManager.createTab();
 
 
-        tabManager.createTab();
-    }
-);
-
-
-/*
- * =========================
- * CLOSE TAB
- * =========================
- */
-
-ipcMain.on(
-    "browser:close-tab",
-    (_event, id) => {
-
-        if (historyVisible) {
-            closeHistory();
-        }
-
-
-        if (bookmarksVisible) {
-            closeBookmarks();
-        }
-
-
-        tabManager.closeTab(
-            id
+        navController.setActiveTab(
+            tab
         );
     }
 );
 
 
-/*
- * =========================
- * SWITCH TAB
- * =========================
- */
+ipcMain.on(
+    "browser:close-tab",
+    (_event, id: string) => {
+
+        closeHistory();
+
+        closeBookmarks();
+
+        closeDownloads();
+
+        tabManager.closeTab(id);
+    }
+);
+
 
 ipcMain.on(
     "browser:switch-tab",
-    (_event, id) => {
+    (_event, id: string) => {
 
-        if (historyVisible) {
-            closeHistory();
-        }
+        closeHistory();
 
+        closeBookmarks();
 
-        if (bookmarksVisible) {
-            closeBookmarks();
-        }
-
+        closeDownloads();
 
         tabManager.setActiveTab(
             id
@@ -788,61 +753,39 @@ ipcMain.on(
 );
 
 
-/*
- * =========================
- * NEXT TAB
- * =========================
- */
-
 ipcMain.on(
     "browser:next-tab",
     () => {
 
-        if (historyVisible) {
-            closeHistory();
-        }
+        closeHistory();
 
+        closeBookmarks();
 
-        if (bookmarksVisible) {
-            closeBookmarks();
-        }
-
+        closeDownloads();
 
         tabManager.switchToNextTab();
     }
 );
 
 
-/*
- * =========================
- * PREVIOUS TAB
- * =========================
- */
-
 ipcMain.on(
     "browser:previous-tab",
     () => {
 
-        if (historyVisible) {
-            closeHistory();
-        }
+        closeHistory();
 
+        closeBookmarks();
 
-        if (bookmarksVisible) {
-            closeBookmarks();
-        }
-
+        closeDownloads();
 
         tabManager.switchToPreviousTab();
     }
 );
 
 
-/*
- * =========================
- * GET HISTORY
- * =========================
- */
+/* =========================
+   HISTORY IPC
+========================= */
 
 ipcMain.handle(
     "browser:get-history",
@@ -853,12 +796,6 @@ ipcMain.handle(
 );
 
 
-/*
- * =========================
- * CLEAR HISTORY
- * =========================
- */
-
 ipcMain.on(
     "browser:clear-history",
     () => {
@@ -867,12 +804,6 @@ ipcMain.on(
     }
 );
 
-
-/*
- * =========================
- * SHOW HISTORY
- * =========================
- */
 
 ipcMain.on(
     "browser:show-history",
@@ -883,12 +814,6 @@ ipcMain.on(
 );
 
 
-/*
- * =========================
- * CLOSE HISTORY
- * =========================
- */
-
 ipcMain.on(
     "browser:close-history",
     () => {
@@ -898,11 +823,9 @@ ipcMain.on(
 );
 
 
-/*
- * =========================
- * GET BOOKMARKS
- * =========================
- */
+/* =========================
+   BOOKMARK IPC
+========================= */
 
 ipcMain.handle(
     "browser:get-bookmarks",
@@ -913,15 +836,12 @@ ipcMain.handle(
 );
 
 
-/*
- * =========================
- * IS BOOKMARKED
- * =========================
- */
-
 ipcMain.handle(
     "browser:is-bookmarked",
-    (_event, url: string) => {
+    (
+        _event,
+        url: string
+    ) => {
 
         return bookmarkManager.isBookmarked(
             url
@@ -930,15 +850,13 @@ ipcMain.handle(
 );
 
 
-/*
- * =========================
- * ADD BOOKMARK
- * =========================
- */
-
 ipcMain.handle(
     "browser:add-bookmark",
-    (_event, title: string, url: string) => {
+    (
+        _event,
+        title: string,
+        url: string
+    ) => {
 
         return bookmarkManager.add(
             title,
@@ -948,15 +866,12 @@ ipcMain.handle(
 );
 
 
-/*
- * =========================
- * REMOVE BOOKMARK
- * =========================
- */
-
 ipcMain.handle(
     "browser:remove-bookmark",
-    (_event, id: string) => {
+    (
+        _event,
+        id: string
+    ) => {
 
         bookmarkManager.remove(
             id
@@ -965,15 +880,12 @@ ipcMain.handle(
 );
 
 
-/*
- * =========================
- * REMOVE BOOKMARK BY URL
- * =========================
- */
-
 ipcMain.handle(
     "browser:remove-bookmark-by-url",
-    (_event, url: string) => {
+    (
+        _event,
+        url: string
+    ) => {
 
         bookmarkManager.removeByUrl(
             url
@@ -981,12 +893,6 @@ ipcMain.handle(
     }
 );
 
-
-/*
- * =========================
- * SHOW BOOKMARKS
- * =========================
- */
 
 ipcMain.on(
     "browser:show-bookmarks",
@@ -997,16 +903,156 @@ ipcMain.on(
 );
 
 
-/*
- * =========================
- * CLOSE BOOKMARKS
- * =========================
- */
-
 ipcMain.on(
     "browser:close-bookmarks",
     () => {
 
         closeBookmarks();
+    }
+);
+
+
+/* =========================
+   DOWNLOAD IPC
+========================= */
+
+
+/*
+ * GET DOWNLOADS
+ */
+
+ipcMain.handle(
+    "browser:get-downloads",
+    () => {
+
+        return downloadManager.getAll();
+    }
+);
+
+
+/*
+ * REMOVE DOWNLOAD
+ */
+
+ipcMain.handle(
+    "browser:remove-download",
+    (
+        _event,
+        id: string
+    ) => {
+
+        downloadManager.remove(
+            id
+        );
+    }
+);
+
+
+/*
+ * CLEAR DOWNLOADS
+ */
+
+ipcMain.on(
+    "browser:clear-downloads",
+    () => {
+
+        downloadManager.clear();
+    }
+);
+
+
+/*
+ * CANCEL DOWNLOAD
+ *
+ * Preload uses ipcRenderer.send(),
+ * so this must use ipcMain.on().
+ */
+
+ipcMain.on(
+    "browser:cancel-download",
+    (
+        _event,
+        id: string
+    ) => {
+
+        downloadManager.cancel(
+            id
+        );
+    }
+);
+
+
+/*
+ * OPEN DOWNLOAD
+ *
+ * Registered exactly once.
+ */
+
+ipcMain.handle(
+    "browser:open-download",
+    async (
+        _event,
+        id: string
+    ) => {
+
+        console.log(
+            "[Downloads IPC] Open:",
+            id
+        );
+
+        await downloadManager.open(
+            id
+        );
+    }
+);
+
+
+/*
+ * SHOW DOWNLOAD IN FOLDER
+ *
+ * Registered exactly once.
+ */
+
+ipcMain.on(
+    "browser:show-download-in-folder",
+    (
+        _event,
+        id: string
+    ) => {
+
+        console.log(
+            "[Downloads IPC] Show in folder:",
+            id
+        );
+
+        downloadManager.showInFolder(
+            id
+        );
+    }
+);
+
+
+/*
+ * SHOW DOWNLOADS VIEW
+ */
+
+ipcMain.on(
+    "browser:show-downloads",
+    () => {
+
+        showDownloads();
+    }
+);
+
+
+/*
+ * CLOSE DOWNLOADS VIEW
+ */
+
+ipcMain.on(
+    "browser:close-downloads",
+    () => {
+
+        closeDownloads();
     }
 );

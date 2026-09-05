@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        http-equiv="Content-Security-Policy"
+        content="
+            default-src 'self';
+            script-src 'self' 'unsafe-inline';
+            style-src 'self' 'unsafe-inline';
+        "
+    >
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Z:// Downloads</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        body {
+            background: #0b0b0b;
+            color: #d6d6d6;
+            font-family:
+                "Cascadia Code",
+                "Consolas",
+                monospace;
+            overflow-y: auto;
+        }
+
+        .header {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            padding: 0 24px;
+
+            border-bottom: 1px solid #292929;
+            background: #101010;
+        }
+
+        .title {
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .title span {
+            color: #777;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        button {
+            border: 1px solid #333;
+            background: #151515;
+            color: #bdbdbd;
+
+            padding: 7px 12px;
+
+            font-family: inherit;
+            font-size: 12px;
+
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #202020;
+            color: #ffffff;
+            border-color: #555;
+        }
+
+        button.danger:hover {
+            color: #ff6b6b;
+            border-color: #663333;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .empty {
+            padding: 60px 20px;
+            text-align: center;
+
+            color: #555;
+            font-size: 14px;
+        }
+
+        .download {
+            margin-bottom: 12px;
+            padding: 16px;
+
+            border: 1px solid #292929;
+            background: #111111;
+        }
+
+        .download:hover {
+            border-color: #3a3a3a;
+        }
+
+        .download-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+
+            gap: 16px;
+        }
+
+        .download-info {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .filename {
+            color: #eeeeee;
+            font-size: 15px;
+            font-weight: bold;
+
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .url {
+            margin-top: 5px;
+
+            color: #666;
+            font-size: 11px;
+
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .status {
+            flex-shrink: 0;
+
+            padding: 4px 8px;
+
+            border: 1px solid #333;
+
+            color: #888;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .status.completed {
+            color: #8fd18f;
+            border-color: #345534;
+        }
+
+        .status.progressing {
+            color: #d5c27a;
+            border-color: #554d2f;
+        }
+
+        .status.failed {
+            color: #e27676;
+            border-color: #593333;
+        }
+
+        .status.cancelled {
+            color: #888;
+            border-color: #444;
+        }
+
+        .progress-container {
+            margin-top: 14px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+
+            background: #222;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+
+            background: #8b8b8b;
+
+            transition: width 0.15s ease;
+        }
+
+        .details {
+            margin-top: 10px;
+
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+
+            color: #666;
+            font-size: 11px;
+        }
+
+        .path {
+            margin-top: 8px;
+
+            color: #555;
+            font-size: 10px;
+
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .actions {
+            display: flex;
+            justify-content: flex-end;
+
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .actions button {
+            font-size: 10px;
+            padding: 6px 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+
+        <div class="title">
+            <span>Z://</span> DOWNLOADS
+        </div>
+
+        <div class="header-actions">
+            <button
+                id="clearButton"
+                class="danger"
+            >
+                CLEAR
+            </button>
+
+            <button id="closeButton">
+                CLOSE
+            </button>
+        </div>
+
+    </div>
+
+    <div
+        id="downloads"
+        class="content"
+    ></div>
+
+    <script>
+        const downloadsContainer =
+            document.getElementById("downloads");
+
+        const clearButton =
+            document.getElementById("clearButton");
+
+        const closeButton =
+            document.getElementById("closeButton");
+
+
+        function formatBytes(bytes) {
+            if (!Number.isFinite(bytes) || bytes <= 0) {
+                return "0 B";
+            }
+
+            const units = [
+                "B",
+                "KB",
+                "MB",
+                "GB",
+                "TB"
+            ];
+
+            let value = bytes;
+            let unitIndex = 0;
+
+            while (
+                value >= 1024 &&
+                unitIndex < units.length - 1
+            ) {
+                value /= 1024;
+                unitIndex++;
+            }
+
+            return (
+                value.toFixed(
+                    value >= 100 ? 0 :
+                    value >= 10 ? 1 :
+                    2
+                ) +
+                " " +
+                units[unitIndex]
+            );
+        }
+
+
+        function formatProgress(download) {
+            if (
+                download.totalBytes <= 0
+            ) {
+                return "SIZE UNKNOWN";
+            }
+
+            const percentage =
+                (
+                    download.receivedBytes /
+                    download.totalBytes
+                ) * 100;
+
+            return (
+                Math.min(
+                    100,
+                    Math.max(
+                        0,
+                        percentage
+                    )
+                ).toFixed(1) +
+                "%"
+            );
+        }
+
+
+        function formatDate(timestamp) {
+            if (!timestamp) {
+                return "";
+            }
+
+            return new Date(
+                timestamp
+            ).toLocaleString();
+        }
+
+
+        function escapeHTML(value) {
+            return String(value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+
+        function renderDownloads(downloads) {
+            downloadsContainer.innerHTML = "";
+
+            if (
+                !downloads ||
+                downloads.length === 0
+            ) {
+                downloadsContainer.innerHTML = `
+                    <div class="empty">
+                        No downloads yet.
+                    </div>
+                `;
+
+                return;
+            }
+
+            for (const download of downloads) {
+                const element =
+                    document.createElement("div");
+
+                element.className = "download";
+
+                let percentage = 0;
+
+                if (
+                    download.totalBytes > 0
+                ) {
+                    percentage =
+                        (
+                            download.receivedBytes /
+                            download.totalBytes
+                        ) * 100;
+
+                    percentage =
+                        Math.min(
+                            100,
+                            Math.max(
+                                0,
+                                percentage
+                            )
+                        );
+                }
+
+                let sizeText =
+                    formatBytes(
+                        download.receivedBytes
+                    );
+
+                if (
+                    download.totalBytes > 0
+                ) {
+                    sizeText +=
+                        " / " +
+                        formatBytes(
+                            download.totalBytes
+                        );
+                }
+
+                let actionButtons = "";
+
+                if (
+                    download.state === "completed"
+                ) {
+                    actionButtons = `
+                        <button
+                            data-action="open"
+                            data-id="${escapeHTML(download.id)}"
+                        >
+                            OPEN
+                        </button>
+
+                        <button
+                            data-action="folder"
+                            data-id="${escapeHTML(download.id)}"
+                        >
+                            SHOW IN FOLDER
+                        </button>
+                    `;
+                }
+
+                if (
+                    download.state === "progressing"
+                ) {
+                    actionButtons = `
+                        <button
+                            data-action="cancel"
+                            data-id="${escapeHTML(download.id)}"
+                        >
+                            CANCEL
+                        </button>
+                    `;
+                }
+
+                actionButtons += `
+                    <button
+                        class="danger"
+                        data-action="remove"
+                        data-id="${escapeHTML(download.id)}"
+                    >
+                        REMOVE
+                    </button>
+                `;
+
+                element.innerHTML = `
+                    <div class="download-top">
+
+                        <div class="download-info">
+
+                            <div class="filename">
+                                ${escapeHTML(download.filename)}
+                            </div>
+
+                            <div class="url">
+                                ${escapeHTML(download.url)}
+                            </div>
+
+                        </div>
+
+                        <div
+                            class="status ${escapeHTML(download.state)}"
+                        >
+                            ${escapeHTML(download.state)}
+                        </div>
+
+                    </div>
+
+                    <div class="progress-container">
+
+                        <div class="progress-bar">
+                            <div
+                                class="progress-fill"
+                                style="width: ${percentage}%"
+                            ></div>
+                        </div>
+
+                        <div class="details">
+                            <span>
+                                ${escapeHTML(sizeText)}
+                            </span>
+
+                            <span>
+                                ${formatProgress(download)}
+                            </span>
+                        </div>
+
+                    </div>
+
+                    <div
+                        class="path"
+                        title="${escapeHTML(download.path)}"
+                    >
+                        ${escapeHTML(download.path)}
+                    </div>
+
+                    <div class="details">
+                        <span>
+                            Started:
+                            ${escapeHTML(
+                                formatDate(
+                                    download.startTime
+                                )
+                            )}
+                        </span>
+
+                        <span>
+                            ${
+                                download.endTime
+                                    ? "Finished: " +
+                                      escapeHTML(
+                                          formatDate(
+                                              download.endTime
+                                          )
+                                      )
+                                    : ""
+                            }
+                        </span>
+                    </div>
+
+                    <div class="actions">
+                        ${actionButtons}
+                    </div>
+                `;
+
+                downloadsContainer.appendChild(
+                    element
+                );
+            }
+        }
+
+
+        downloadsContainer.addEventListener(
+            "click",
+            async (event) => {
+                const button =
+                    event.target.closest(
+                        "button[data-action]"
+                    );
+
+                if (!button) {
+                    return;
+                }
+
+                const action =
+                    button.dataset.action;
+
+                const id =
+                    button.dataset.id;
+
+                if (!id) {
+                    return;
+                }
+
+                if (action === "open") {
+                    await window.browserAPI.openDownload(
+                        id
+                    );
+                }
+
+                else if (action === "folder") {
+                    window.browserAPI.showDownloadInFolder(
+                        id
+                    );
+                }
+
+                else if (action === "cancel") {
+                    window.browserAPI.cancelDownload(
+                        id
+                    );
+                }
+
+                else if (action === "remove") {
+                    await window.browserAPI.removeDownload(
+                        id
+                    );
+                }
+            }
+        );
+
+
+        clearButton.addEventListener(
+            "click",
+            async () => {
+                await window.browserAPI.clearDownloads();
+            }
+        );
+
+
+        closeButton.addEventListener(
+            "click",
+            () => {
+                window.browserAPI.closeDownloads();
+            }
+        );
+
+
+        window.browserAPI.onDownloadsUpdated(
+            (downloads) => {
+                renderDownloads(downloads);
+            }
+        );
+
+
+        async function loadDownloads() {
+            const downloads =
+                await window.browserAPI.getDownloads();
+
+            renderDownloads(downloads);
+        }
+
+
+        loadDownloads();
+    </script>
+
+</body>
+</html>
