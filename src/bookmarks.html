@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+    >
+
+    <title>Z:// BOOKMARKS</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 24px;
+            background: #0d0d0d;
+            color: #e6e6e6;
+            font-family: Consolas, "Courier New", monospace;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid #333;
+        }
+
+        .title {
+            font-size: 20px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        button {
+            border: 1px solid #444;
+            background: #161616;
+            color: #ddd;
+            padding: 7px 12px;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #222;
+        }
+
+        .bookmark {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 12px;
+            margin-bottom: 8px;
+            border: 1px solid #292929;
+            background: #121212;
+        }
+
+        .bookmark-info {
+            min-width: 0;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .bookmark-title {
+            font-size: 15px;
+            margin-bottom: 5px;
+        }
+
+        .bookmark-url {
+            font-size: 12px;
+            color: #888;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .remove {
+            flex-shrink: 0;
+        }
+
+        .empty {
+            color: #666;
+            text-align: center;
+            margin-top: 60px;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <div class="title">Z:// BOOKMARKS</div>
+
+    <div class="controls">
+        <button id="clearButton">CLEAR</button>
+        <button id="closeButton">CLOSE</button>
+    </div>
+</header>
+
+<main id="bookmarkList"></main>
+
+<script>
+    const bookmarkList =
+        document.getElementById("bookmarkList");
+
+    const clearButton =
+        document.getElementById("clearButton");
+
+    const closeButton =
+        document.getElementById("closeButton");
+
+    async function loadBookmarks() {
+        const bookmarks =
+            await window.browserAPI.getBookmarks();
+
+        bookmarkList.innerHTML = "";
+
+        if (bookmarks.length === 0) {
+            const empty =
+                document.createElement("div");
+
+            empty.className = "empty";
+            empty.textContent =
+                "No bookmarks.";
+
+            bookmarkList.appendChild(empty);
+
+            return;
+        }
+
+        for (const bookmark of bookmarks) {
+            const item =
+                document.createElement("div");
+
+            item.className = "bookmark";
+
+            const info =
+                document.createElement("div");
+
+            info.className = "bookmark-info";
+
+            const title =
+                document.createElement("div");
+
+            title.className = "bookmark-title";
+            title.textContent =
+                `⭐ ${bookmark.title}`;
+
+            const url =
+                document.createElement("div");
+
+            url.className = "bookmark-url";
+            url.textContent =
+                bookmark.url;
+
+            info.appendChild(title);
+            info.appendChild(url);
+
+            info.addEventListener(
+                "click",
+                () => {
+                    window.browserAPI.navigate(
+                        bookmark.url
+                    );
+                }
+            );
+
+            const remove =
+                document.createElement("button");
+
+            remove.className = "remove";
+            remove.textContent = "REMOVE";
+
+            remove.addEventListener(
+                "click",
+                async (event) => {
+                    event.stopPropagation();
+
+                    await window.browserAPI.removeBookmark(
+                        bookmark.id
+                    );
+
+                    loadBookmarks();
+                }
+            );
+
+            item.appendChild(info);
+            item.appendChild(remove);
+
+            bookmarkList.appendChild(item);
+        }
+    }
+
+    clearButton.addEventListener(
+        "click",
+        async () => {
+            const bookmarks =
+                await window.browserAPI.getBookmarks();
+
+            for (const bookmark of bookmarks) {
+                await window.browserAPI.removeBookmark(
+                    bookmark.id
+                );
+            }
+
+            loadBookmarks();
+        }
+    );
+
+    closeButton.addEventListener(
+        "click",
+        () => {
+            window.browserAPI.closeBookmarks();
+        }
+    );
+
+    loadBookmarks();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "Z-browser",
+  "version": "1.0.0",
+  "description": "A custom Chromium-based browser",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && electron ."
+  },
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "typescript": "^5.0.0"
+  }
+}

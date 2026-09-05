@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self' 'unsafe-inline';
+                 style-src 'self' 'unsafe-inline';"
+    >
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Z Browser</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+
+            width: 100%;
+            height: 100%;
+
+            overflow: hidden;
+
+            font-family: Arial, sans-serif;
+
+            background: #1e1e1e;
+            color: white;
+        }
+
+
+        /* =========================
+           TAB BAR
+           ========================= */
+
+        .tab-bar {
+            height: 40px;
+
+            display: flex;
+            align-items: center;
+
+            background: #171717;
+
+            padding: 4px 6px;
+            gap: 4px;
+
+            overflow-x: auto;
+        }
+
+
+        .tab {
+            height: 32px;
+
+            min-width: 150px;
+            max-width: 240px;
+
+            display: flex;
+            align-items: center;
+
+            padding: 0 8px 0 12px;
+
+            border-radius: 6px 6px 0 0;
+
+            background: #252525;
+            color: #aaa;
+
+            cursor: pointer;
+            user-select: none;
+        }
+
+
+        .tab:hover {
+            background: #2d2d2d;
+        }
+
+
+        .tab.active {
+            background: #333;
+            color: white;
+        }
+
+
+        .tab-title {
+            flex: 1;
+
+            overflow: hidden;
+
+            white-space: nowrap;
+            text-overflow: ellipsis;
+
+            font-size: 13px;
+        }
+
+
+        .tab-close {
+            margin-left: 8px;
+
+            width: 22px;
+            height: 22px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            border: none;
+            border-radius: 4px;
+
+            background: transparent;
+
+            color: #aaa;
+
+            font-size: 14px;
+
+            cursor: pointer;
+        }
+
+
+        .tab-close:hover {
+            background: #444;
+            color: white;
+        }
+
+
+        #newTabButton {
+            width: 32px;
+            min-width: 32px;
+
+            height: 32px;
+
+            margin-left: 4px;
+
+            border: none;
+            border-radius: 6px;
+
+            background: #252525;
+            color: white;
+
+            font-size: 20px;
+
+            cursor: pointer;
+        }
+
+
+        #newTabButton:hover {
+            background: #333;
+        }
+
+
+        /* =========================
+           NAVIGATION TOOLBAR
+           ========================= */
+
+        .toolbar {
+            height: 60px;
+
+            display: flex;
+            align-items: center;
+
+            gap: 8px;
+
+            padding: 8px;
+
+            background: #1e1e1e;
+        }
+
+
+        .toolbar button {
+            height: 42px;
+
+            min-width: 42px;
+
+            border: none;
+            border-radius: 6px;
+
+            background: #333;
+            color: white;
+
+            font-size: 20px;
+
+            cursor: pointer;
+        }
+
+
+        .toolbar button:hover {
+            background: #444;
+        }
+
+
+        #addressBar {
+            flex: 1;
+
+            height: 42px;
+
+            padding: 0 14px;
+
+            border: none;
+            border-radius: 6px;
+
+            outline: none;
+
+            background: #2b2b2b;
+            color: white;
+
+            font-size: 16px;
+        }
+
+
+        #addressBar::placeholder {
+            color: #aaa;
+        }
+
+
+        #historyButton,
+        #bookmarksButton {
+            min-width: 90px !important;
+
+            font-size: 14px !important;
+        }
+
+
+        #bookmarkButton {
+            min-width: 42px !important;
+
+            font-size: 22px !important;
+        }
+    </style>
+</head>
+
+
+<body>
+
+    <!-- =========================
+         TAB BAR
+         ========================= -->
+
+    <div
+        class="tab-bar"
+        id="tabBar"
+    >
+
+        <button id="newTabButton">
+            +
+        </button>
+
+    </div>
+
+
+    <!-- =========================
+         NAVIGATION TOOLBAR
+         ========================= -->
+
+    <div class="toolbar">
+
+        <button id="backButton">
+            ←
+        </button>
+
+        <button id="forwardButton">
+            →
+        </button>
+
+        <button id="reloadButton">
+            ⟳
+        </button>
+
+        <input
+            id="addressBar"
+            type="text"
+            placeholder="Search or enter address"
+        >
+
+        <button id="bookmarkButton">
+            ☆
+        </button>
+
+        <button id="historyButton">
+            History
+        </button>
+
+        <button id="bookmarksButton">
+            Bookmarks
+        </button>
+
+    </div>
+
+
+    <script>
+
+        /*
+         * =========================
+         * ELEMENTS
+         * =========================
+         */
+
+        const addressBar =
+            document.getElementById("addressBar");
+
+        const backButton =
+            document.getElementById("backButton");
+
+        const forwardButton =
+            document.getElementById("forwardButton");
+
+        const reloadButton =
+            document.getElementById("reloadButton");
+
+        const newTabButton =
+            document.getElementById("newTabButton");
+
+        const tabBar =
+            document.getElementById("tabBar");
+
+        const historyButton =
+            document.getElementById("historyButton");
+
+        const bookmarksButton =
+            document.getElementById("bookmarksButton");
+
+        const bookmarkButton =
+            document.getElementById("bookmarkButton");
+
+
+        /*
+         * =========================
+         * TAB STATE
+         * =========================
+         */
+
+        let currentTabs = [];
+
+        const loadingTabs = new Set();
+
+
+        /*
+         * =========================
+         * ACTIVE TAB
+         * =========================
+         */
+
+        function getActiveTab() {
+
+            return currentTabs.find(
+                (tab) => tab.active
+            ) || null;
+
+        }
+
+
+        /*
+         * =========================
+         * UPDATE BOOKMARK BUTTON
+         * =========================
+         */
+
+        async function updateBookmarkButton() {
+
+            const activeTab =
+                getActiveTab();
+
+
+            if (
+                !activeTab ||
+                !activeTab.url
+            ) {
+
+                bookmarkButton.textContent =
+                    "☆";
+
+                return;
+            }
+
+
+            const bookmarked =
+                await window.browserAPI.isBookmarked(
+                    activeTab.url
+                );
+
+
+            bookmarkButton.textContent =
+                bookmarked
+                    ? "★"
+                    : "☆";
+        }
+
+
+        /*
+         * =========================
+         * NAVIGATION
+         * =========================
+         */
+
+        addressBar.addEventListener(
+            "keydown",
+            (event) => {
+
+                if (event.key !== "Enter") {
+                    return;
+                }
+
+
+                const input =
+                    addressBar.value.trim();
+
+
+                if (input.length === 0) {
+                    return;
+                }
+
+
+                window.browserAPI.navigate(
+                    input
+                );
+
+            }
+        );
+
+
+        backButton.addEventListener(
+            "click",
+            () => {
+
+                window.browserAPI.goBack();
+
+            }
+        );
+
+
+        forwardButton.addEventListener(
+            "click",
+            () => {
+
+                window.browserAPI.goForward();
+
+            }
+        );
+
+
+        reloadButton.addEventListener(
+            "click",
+            () => {
+
+                window.browserAPI.reload();
+
+            }
+        );
+
+
+        newTabButton.addEventListener(
+            "click",
+            () => {
+
+                window.browserAPI.newTab();
+
+            }
+        );
+
+
+        /*
+         * =========================
+         * HISTORY
+         * =========================
+         */
+
+        historyButton.addEventListener(
+            "click",
+            () => {
+
+                window.browserAPI.showHistory();
+
+            }
+        );
+
+
+        /*
+         * =========================
+         * BOOKMARKS PAGE
+         * =========================
+         */
+
+        bookmarksButton.addEventListener(
+            "click",
+            () => {
+
+                window.browserAPI.showBookmarks();
+
+            }
+        );
+
+
+        /*
+         * =========================
+         * BOOKMARK CURRENT PAGE
+         * =========================
+         */
+
+        bookmarkButton.addEventListener(
+            "click",
+            async () => {
+
+                const activeTab =
+                    getActiveTab();
+
+
+                if (
+                    !activeTab ||
+                    !activeTab.url
+                ) {
+
+                    return;
+                }
+
+
+                const url =
+                    activeTab.url;
+
+
+                const bookmarked =
+                    await window.browserAPI.isBookmarked(
+                        url
+                    );
+
+
+                if (bookmarked) {
+
+                    await window.browserAPI
+                        .removeBookmarkByUrl(
+                            url
+                        );
+
+                } else {
+
+                    const title =
+                        activeTab.title ||
+                        url;
+
+
+                    await window.browserAPI
+                        .addBookmark(
+                            title,
+                            url
+                        );
+                }
+
+
+                updateBookmarkButton();
+
+            }
+        );
+
+
+        /*
+         * =========================
+         * URL SYNC
+         * =========================
+         */
+
+        window.browserAPI.onURLChanged(
+            (url) => {
+
+                addressBar.value =
+                    url;
+
+                updateBookmarkButton();
+
+            }
+        );
+
+
+        /*
+         * =========================
+         * TAB RENDERING
+         * =========================
+         */
+
+        function renderTabs(tabs) {
+
+            currentTabs = tabs;
+
+            tabBar.innerHTML = "";
+
+
+            for (const tab of tabs) {
+
+                const tabElement =
+                    document.createElement("div");
+
+                tabElement.className =
+                    "tab";
+
+
+                if (tab.active) {
+
+                    tabElement.classList.add(
+                        "active"
+                    );
+
+                }
+
+
+                const title =
+                    document.createElement("div");
+
+                title.className =
+                    "tab-title";
+
+
+                title.textContent =
+                    loadingTabs.has(tab.id)
+                        ? "Loading..."
+                        : (
+                            tab.title ||
+                            "New Tab"
+                        );
+
+
+                const closeButton =
+                    document.createElement("button");
+
+                closeButton.className =
+                    "tab-close";
+
+                closeButton.textContent =
+                    "×";
+
+
+                closeButton.addEventListener(
+                    "click",
+                    (event) => {
+
+                        event.stopPropagation();
+
+
+                        window.browserAPI.closeTab(
+                            tab.id
+                        );
+
+                    }
+                );
+
+
+                tabElement.addEventListener(
+                    "click",
+                    () => {
+
+                        window.browserAPI.switchTab(
+                            tab.id
+                        );
+
+                    }
+                );
+
+
+                tabElement.appendChild(
+                    title
+                );
+
+
+                tabElement.appendChild(
+                    closeButton
+                );
+
+
+                tabBar.appendChild(
+                    tabElement
+                );
+            }
+
+
+            /*
+             * Re-add the + button after
+             * rebuilding the tab bar.
+             */
+
+            tabBar.appendChild(
+                newTabButton
+            );
+
+
+            /*
+             * Keep bookmark state
+             * synchronized with active tab.
+             */
+
+            updateBookmarkButton();
+
+        }
+
+
+        window.browserAPI.onTabsUpdated(
+            (tabs) => {
+
+                renderTabs(
+                    tabs
+                );
+
+            }
+        );
+
+
+        /*
+         * =========================
+         * TAB LOADING STATE
+         * =========================
+         */
+
+        window.browserAPI.onTabLoadingChanged(
+            (data) => {
+
+                if (data.loading) {
+
+                    loadingTabs.add(
+                        data.id
+                    );
+
+                } else {
+
+                    loadingTabs.delete(
+                        data.id
+                    );
+
+                }
+
+
+                renderTabs(
+                    currentTabs
+                );
+
+            }
+        );
+
+
+        /*
+         * =========================
+         * KEYBOARD SHORTCUTS
+         * =========================
+         */
+
+        document.addEventListener(
+            "keydown",
+            (event) => {
+
+                /*
+                 * Ctrl + T
+                 * New tab
+                 */
+
+                if (
+                    event.ctrlKey &&
+                    event.key.toLowerCase() === "t"
+                ) {
+
+                    event.preventDefault();
+
+
+                    window.browserAPI.newTab();
+
+
+                    return;
+                }
+
+
+                /*
+                 * Ctrl + Tab
+                 * Next tab
+                 */
+
+                if (
+                    event.ctrlKey &&
+                    event.key === "Tab"
+                ) {
+
+                    event.preventDefault();
+
+
+                    if (event.shiftKey) {
+
+                        /*
+                         * Ctrl + Shift + Tab
+                         * Previous tab
+                         */
+
+                        window.browserAPI.previousTab();
+
+                    } else {
+
+                        /*
+                         * Ctrl + Tab
+                         * Next tab
+                         */
+
+                        window.browserAPI.nextTab();
+
+                    }
+
+
+                    return;
+                }
+
+
+                /*
+                 * Escape
+                 *
+                 * Close History or Bookmarks.
+                 */
+
+                if (
+                    event.key === "Escape"
+                ) {
+
+                    window.browserAPI.closeHistory();
+
+                    window.browserAPI.closeBookmarks();
+
+                }
+
+            }
+        );
+
+    </script>
+
+</body>
+
+</html>
